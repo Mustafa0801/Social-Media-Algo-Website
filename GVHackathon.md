@@ -1,8 +1,13 @@
-### GVHackathon - Touchscreens
+### GVHackathon - Social Media Algorithm
 
 
 
 
 
-###### Capacitive touchscreens work by creating an invisible electrostatic field across the glass surface and detecting tiny changes in electrical charge when a conductive object—like your bare finger—touches or comes very close to the screen
+##### **To Do List:**
+
+1. ###### Scrolling system + other buttons (like, comment, follow, not interested)
+2. ###### Interests tracking
+3. ###### Final algorithm, dictates content shown
+4. ###### Reducing repetitive content
 
