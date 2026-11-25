@@ -5,6 +5,9 @@ import time
 
 import altair as alt
 import pandas as pd
+import plotly.express as px
+
+import streamlit.components.v1 as components
 import streamlit as st
 
 st.set_page_config(layout="wide")
@@ -15,7 +18,7 @@ st.title("Social media algorithms")
 st.subheader("A simple demo")
 
 COLORS = {
-    "Cooking": ("#ff8a4c", "#7a2e0e"),
+    "Cooking": ("#ff662e", "#822b05"),
     "Fitness": ("#22c27a", "#0b4a2d"),
     "Gaming": ("#7b6cff", "#241a6b"),
     "Travel": ("#5fc1eb", "#053a5b"),
@@ -171,13 +174,13 @@ VIDEOS = [
 POINTS = {"watch": 1, "liked": 4, "commented": 5, "followed": 8}
 SKIP_LIMIT = 1      # leaving after this many seconds or fewer counts as a skip
 SKIP_PENALTY = 2
-AWAY_LIMIT = 2      # if the page was frozen longer than this (tab hidden), pause the clock
+AWAY_LIMIT = 4      # if the page was frozen longer than this (tab hidden), pause the clock
 
 # ----- recommendation settings -----
 BASE_WEIGHT = 3        # every topic starts with this weight, so a 0-point topic can still appear
 RECENT_BLOCK = 5       # a video can't repeat until this many other videos have been shown
 FATIGUE_WINDOW = 5     # look at this many of the latest videos for topic repetition
-FATIGUE = 0.5          # weight multiplier for each recent video sharing a topic
+FATIGUE = 0.3          # weight multiplier for each recent video sharing a topic
 EXPLORE_CHANCE = 0.20  # chance of ignoring points entirely and picking any eligible video
 
 ss.setdefault("index", random.randrange(len(VIDEOS)))   # start on a random video
@@ -285,13 +288,38 @@ def toggle(name):
     add_points(sign * POINTS[name])
 
 
-@st.fragment(run_every=0.5)
 def progress_bar():
-    pay_watchtime()
+    """Progress bar drawn in the browser, so the server doesn't have to refresh it."""
     total = VIDEOS[ss.index]["seconds"]
-    pos = elapsed() % total                 # wraps back to 0 at the end = loop
-    loops = int(elapsed() // total)
-    st.progress(pos / total, text=f"{int(pos)}s / {total}s" + (f"  ·  loop {loops + 1}" if loops else ""))
+    components.html(f"""
+    <div id="t" style="font:14px sans-serif;color:#888;margin-bottom:5px"></div>
+    <div style="height:8px;background:rgba(128,128,128,.25);border-radius:9px;overflow:hidden">
+      <div id="b" style="height:100%;width:0;background:#ff4b4b"></div>
+    </div>
+    <script>
+      const total = {total};
+      const base = {elapsed():.2f};        // seconds already watched when this was drawn
+      let t0 = performance.now(), hiddenAt = null;
+
+      // pause while the tab is hidden, like sync_clock() does on the server
+      document.addEventListener("visibilitychange", () => {{
+        if (document.hidden) hiddenAt = performance.now();
+        else if (hiddenAt !== null) {{ t0 += performance.now() - hiddenAt; hiddenAt = null; }}
+      }});
+
+      function tick() {{
+        const e = base + (performance.now() - t0) / 1000;
+        const pos = e % total;                         // wraps to 0 = loop
+        document.getElementById("b").style.width = (pos / total * 100) + "%";
+        document.getElementById("t").textContent =
+          Math.floor(pos) + "s / " + total + "s" +
+          (e >= total ? "  ·  loop " + (Math.floor(e / total) + 1) : "");
+        requestAnimationFrame(tick);
+      }}
+      tick();
+    </script>
+    """, height=48)
+
 
 def topic_chart(data, fmt="d", max_value=None):
     """Horizontal bars in each topic's own color, fixed order, value labels, no clutter."""
@@ -371,3 +399,31 @@ with right:
     col1, col2 = st.columns([1, 2])
     with col2:
         points_chart()
+
+
+df = pd.DataFrame({
+    "Topic": ["Cooking", "Travel", "Fitness", "Gaming", "Tech", "Music", "Comedy", "Science"],
+    "Amount": [ss.points["Cooking"], ss.points["Travel"], ss.points["Fitness"], 
+               ss.points["Gaming"], ss.points["Tech"], ss.points["Music"], 
+               ss.points["Comedy"], ss.points["Science"]]
+})
+
+color_map ={
+    "Cooking": "#d33f00",
+    "Travel": "#5fc1eb",
+    "Fitness": "#00d54b",
+    "Gaming": "#8e3dff",
+    "Tech": "#ffd632",
+    "Music": "#ff3f76",
+    "Comedy": "#c3ff36",
+    "Science": "#0de1e4"
+}
+
+
+algo_chart = px.pie(df, names="Topic", 
+                    values="Amount", 
+                    title="Algorithm Summary", 
+                    color="Topic", 
+                    color_discrete_map=color_map)
+
+st.plotly_chart(algo_chart)
