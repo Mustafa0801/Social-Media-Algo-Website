@@ -2,19 +2,71 @@ import math
 import random
 import time
 
-
 import altair as alt
 import pandas as pd
 import plotly.express as px
-
-import streamlit.components.v1 as components
 import streamlit as st
+import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="Social media algorithms", page_icon="📱", layout="wide")
 ss = st.session_state
 
+# ---------- look and feel: white page, light-blue panels, neon-red accents ----------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap');
+:root{--red:#ff1f4b;--blue:#7dd3fc;--blue-soft:#f0f9ff;--blue-line:#bae6fd;--ink:#0f172a;--body:#334155;--muted:#64748b}
+.stApp{background:#ffffff;color:var(--ink)}
+.stApp,.stApp p,.stApp li,.stApp h1,.stApp h2,.stApp h3,.stApp h4,.stApp button,.stApp label{font-family:'Sora',system-ui,sans-serif}
+header[data-testid="stHeader"]{background:transparent}
+#MainMenu,footer{visibility:hidden}
+.block-container{padding-top:2rem;padding-bottom:4rem;max-width:1280px}
 
-st.title("Social media algorithms")
+/* hero */
+.hero{padding:6px 0 20px}
+.hero h1{font-size:3.1rem;font-weight:800;letter-spacing:-.035em;line-height:1.05;margin:0 0 10px;padding:0;color:var(--ink)}
+.hero h1 span{color:var(--red)}
+.hero p{font-size:1.08rem;color:var(--muted);max-width:660px;margin:0;line-height:1.55}
+
+/* info cards, section titles */
+.info{background:var(--blue-soft);border:1px solid var(--blue-line);border-radius:18px;padding:20px 24px;height:100%}
+.info h4{margin:0 0 8px;font-size:1.05rem;font-weight:700;color:var(--ink);padding:0}
+.info p{margin:0;color:var(--body);line-height:1.65;font-size:.95rem}
+.sec{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px;margin:38px 0 16px}
+.sec b{align-self:center;width:6px;height:28px;border-radius:4px;background:var(--red)}
+.sec h2{font-size:1.55rem;font-weight:800;margin:0;padding:0;letter-spacing:-.02em;color:var(--ink)}
+.sec span{color:var(--muted);font-size:.95rem}
+
+/* panels (containers whose key starts with "panel") */
+[class*="st-key-panel"]{background:#fff;border:1px solid var(--blue-line)!important;border-radius:18px!important;
+  padding:8px 8px 2px}
+.phead{margin:2px 0 2px}
+.phead b{display:block;font-size:1.02rem;font-weight:700;color:var(--ink)}
+.phead span{font-size:.82rem;color:var(--muted)}
+.empty{border:1.5px dashed var(--blue-line);border-radius:14px;padding:46px 20px;text-align:center;color:var(--muted);background:var(--blue-soft)}
+
+/* buttons */
+.stButton>button{border-radius:12px;border:1.5px solid var(--blue-line);background:var(--blue-soft);color:var(--ink);
+  font-weight:600;min-height:2.7rem;transition:all .15s ease}
+.stButton>button:hover{border-color:var(--red);color:var(--red);background:#fff}
+.stButton>button[kind="primary"],.stButton>button[data-testid="stBaseButton-primary"]{background:var(--red);border-color:var(--red);
+  color:#fff}
+.stButton>button[kind="primary"]:hover,.stButton>button[data-testid="stBaseButton-primary"]:hover{background:#e00b39;color:#fff;border-color:#e00b39}
+.st-key-actions button{min-height:3.2rem;font-size:1.3rem;border-radius:16px}
+[data-testid="stCaptionContainer"]{color:var(--muted)}
+
+/* algorithm steps, filter bubble */
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+@media(max-width:1000px){.steps{grid-template-columns:1fr}}
+.step{background:#fff;border:1px solid var(--blue-line);border-radius:16px;padding:18px 16px}
+.step i{font-style:normal;display:inline-flex;width:32px;height:32px;border-radius:50%;background:var(--red);color:#fff;
+  font-weight:800;align-items:center;justify-content:center;margin-bottom:12px}
+.step p{margin:0;font-size:.92rem;color:var(--body);line-height:1.5}
+.bubble{border-left:5px solid var(--red);background:var(--blue-soft);border-radius:0 18px 18px 0;padding:22px 28px}
+.bubble p{margin:0 0 12px;color:var(--body);max-width:920px;line-height:1.7}
+.bubble p:last-child{margin:0;color:var(--ink);font-weight:700}
+</style>
+""", unsafe_allow_html=True)
 
 COLORS = {
     "Cooking": ("#ff662e", "#822b05"),
@@ -25,6 +77,12 @@ COLORS = {
     "Tech": ("#ffdb49", "#db9f07"),
     "Comedy": ("#a3e635", "#3f6212"),
     "Science": ("#2dd4bf", "#0f5f56"),
+}
+
+# slightly deeper colors for the pie chart
+PIE_COLORS = {
+    "Cooking": "#d33f00", "Travel": "#5fc1eb", "Fitness": "#00d54b", "Gaming": "#8e3dff",
+    "Tech": "#ffd632", "Music": "#ff3f76", "Comedy": "#c3ff36", "Science": "#0de1e4",
 }
 
 
@@ -191,7 +249,8 @@ ss.setdefault("last_tick", time.time()) # last time any timer code ran
 for key in ("liked", "commented", "followed"):
     ss.setdefault(key, set())
 ss.setdefault("paused", START_PAUSED)
-ss.setdefault("paused_at", ss.started) 
+ss.setdefault("paused_at", ss.started)
+
 
 def add_points(n):
     for topic in VIDEOS[st.session_state.index]["topics"]:
@@ -305,13 +364,27 @@ def toggle_play():
         ss.paused = True
 
 
+def reset():
+    ss.clear()
+
+
+# ---------- small layout helpers ----------
+def section(title, sub=""):
+    st.markdown(f'<div class="sec"><b></b><h2>{title}</h2><span>{sub}</span></div>', unsafe_allow_html=True)
+
+
+def panel_head(title, sub):
+    st.markdown(f'<div class="phead"><b>{title}</b><span>{sub}</span></div>', unsafe_allow_html=True)
+
+
+# ---------- progress bar (drawn in the browser, so the server doesn't refresh it) ----------
 def progress_bar():
-    """Progress bar drawn in the browser, so the server doesn't have to refresh it."""
     total = VIDEOS[ss.index]["seconds"]
     components.html(f"""
-    <div id="t" style="font:14px sans-serif;color:#888;margin-bottom:5px"></div>
-    <div style="height:8px;background:rgba(128,128,128,.25);border-radius:9px;overflow:hidden">
-      <div id="b" style="height:100%;width:0;background:#ff4b4b"></div>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Sora:wght@600&display=swap');</style>
+    <div id="t" style="font:600 13px Sora,system-ui,sans-serif;color:#475569;margin-bottom:7px"></div>
+    <div style="height:9px;background:#e0f2fe;border-radius:9px;overflow:hidden">
+      <div id="b" style="height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,#ff1f4b,#ff5c7c)"></div>
     </div>
     <script>
       const total = {total};
@@ -338,35 +411,59 @@ def progress_bar():
       }}
       if (paused) draw(base); else tick();
     </script>
-    """, height=48)
+    """, height=52)
 
 
+# ---------- charts ----------
 def topic_chart(data, fmt="d", max_value=None):
-    """Horizontal bars in each topic's own color, fixed order, value labels, no clutter."""
+    """Horizontal bars in each topic's own color, value labels, no clutter."""
     df = pd.DataFrame({"Topic": list(data), "Value": list(data.values())})
     top = max_value or max(df["Value"].max(), 10)     # at least 10 so tiny values don't fill the bar
     base = alt.Chart(df).encode(
         y=alt.Y("Topic:N", sort="-x", title=None,
-                axis=alt.Axis(ticks=False, domain=False, labelFontSize=13, labelPadding=8)),
-        x=alt.X("Value:Q", title=None, axis=None, scale=alt.Scale(domain=[0, top * 1.15])),
+                axis=alt.Axis(ticks=False, domain=False, labelFontSize=12, labelPadding=8, labelColor="#334155")),
+        x=alt.X("Value:Q", title=None, axis=None, scale=alt.Scale(domain=[0, top * 1.18])),
     )
-    bars = base.mark_bar(cornerRadiusEnd=6, size=20).encode(
+    bars = base.mark_bar(cornerRadiusEnd=6, size=15).encode(
         color=alt.Color("Topic:N", legend=None,
                         scale=alt.Scale(domain=list(COLORS), range=[c[0] for c in COLORS.values()])))
-    labels = base.mark_text(align="left", dx=6, fontSize=13, color="white").encode(text=alt.Text("Value:Q", format=fmt))
-    return (bars + labels).properties(height=len(df) * 38).configure_view(strokeWidth=0)
-
-def reset():
-    ss.clear()
+    labels = base.mark_text(align="left", dx=6, fontSize=12, fontWeight=600, color="#0f172a").encode(
+        text=alt.Text("Value:Q", format=fmt))
+    return ((bars + labels).properties(height=len(df) * 25)
+            .configure(background="transparent").configure_view(strokeWidth=0))
 
 
 @st.fragment(run_every=1)
 def points_chart():
     pay_watchtime()
-    st.altair_chart(topic_chart(ss.points), height=200)
-    st.altair_chart(topic_chart(topic_odds(), fmt=".0f", max_value=100), height=200)
+    pa, pb = st.columns(2)
+    with pa:
+        with st.container(border=True, key="panel_points"):
+            panel_head("Your topic points", "Earned by watching, liking, commenting and following.")
+            st.altair_chart(topic_chart(ss.points), height=200)
+    with pb:
+        with st.container(border=True, key="panel_odds"):
+            panel_head("Next video probabilities (%)", "Depends on interests and how often/recently a topic has appeared")
+            st.altair_chart(topic_chart(topic_odds(), fmt=".0f", max_value=100), height=200)
 
 
+def mix_chart():
+    if sum(ss.points.values()) == 0:
+        st.markdown('<div class="empty">Watch or react to a video and your interest mix will appear here.</div>',
+                    unsafe_allow_html=True)
+        return
+    df = pd.DataFrame({"Topic": list(ss.points), "Amount": list(ss.points.values())})
+    df = df[df["Amount"] > 0]
+    fig = px.pie(df, names="Topic", values="Amount", color="Topic", color_discrete_map=PIE_COLORS, hole=0.55)
+    fig.update_traces(textinfo="label+percent", textposition="outside", textfont_size=13,
+                      marker=dict(line=dict(color="#ffffff", width=2)))
+    fig.update_layout(height=340, margin=dict(t=30, b=30, l=30, r=30), showlegend=False,
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      font=dict(family="Sora, sans-serif", color="#0f172a"))
+    st.plotly_chart(fig)
+
+
+# ---------- the video card (size unchanged) ----------
 v, i = VIDEOS[ss.index], ss.index
 c1, c2 = COLORS[v["topics"][0]]
 chips = "".join(
@@ -375,11 +472,11 @@ chips = "".join(
     f'display:inline-block">#{t}</span>' for t in v["topics"])
 mins, secs = divmod(v["seconds"], 60)
 
-
 card = f"""
 <div style="width:320px;max-width:100%;aspect-ratio:9/12;margin:0;border-radius:20px;
             padding:20px;box-sizing:border-box;color:white;display:flex;flex-direction:column;
-            justify-content:space-between;background:linear-gradient(160deg,{c1},{c2});">
+            justify-content:space-between;background:linear-gradient(160deg,{c1},{c2});
+            text-shadow:0 1px 8px rgba(0,0,0,.25);">
   <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600">
     <span>{v['views']} views</span><span>{mins}:{secs:02d}</span>
   </div>
@@ -392,100 +489,90 @@ card = f"""
 </div>
 """
 
-df = pd.DataFrame({
-    "Topic": ["Cooking", "Travel", "Fitness", "Gaming", "Tech", "Music", "Comedy", "Science"],
-    "Amount": [ss.points["Cooking"], ss.points["Travel"], ss.points["Fitness"], 
-               ss.points["Gaming"], ss.points["Tech"], ss.points["Music"], 
-               ss.points["Comedy"], ss.points["Science"]]
-})
+# ======================= page =======================
+st.markdown("""
+<div class="hero">
+  <h1>Social media <span>algorithms</span></h1>
+  <p>See how a feed learns what you enjoy.</p>
+</div>
+""", unsafe_allow_html=True)
 
-color_map ={
-    "Cooking": "#d33f00",
-    "Travel": "#5fc1eb",
-    "Fitness": "#00d54b",
-    "Gaming": "#8e3dff",
-    "Tech": "#ffd632",
-    "Music": "#ff3f76",
-    "Comedy": "#c3ff36",
-    "Science": "#0de1e4"
-}
+ia, ib = st.columns(2, gap="large")
+with ia:
+    st.markdown("""<div class="info"><h4>How does social media work?</h4>
+    <p>Have you ever felt that Instagram, TikTok and YouTube can accurately guess what you wish to watch?
+    Social media sites utilise algorithms to analyse your activity and infer which type of content they think you would enjoy.</p></div>""",
+                unsafe_allow_html=True)
+with ib:
+    st.markdown("""<div class="info"><h4>What does it learn about you?</h4>
+    <p>Simply by watching, liking, commenting upon, following and even skipping videos, data about your interests is collected.
+    This is then applied so that your social media feed can be tailored to you, both in terms of content and 
+    its sequence.</p></div>""",
+                unsafe_allow_html=True)
 
+st.write("") 
 
-algo_chart = px.pie(df, names="Topic", 
-                    values="Amount", 
-                    color="Topic", 
-                    color_discrete_map=color_map)
+st.markdown("""<div class="info"><h4>What this website demonstrates:</h4>
+    <p>The interactive mechanism below shows a simple version of how social media algorithms typically work. 
+        It gives points to topics you engage with and deducts points from those you don't.
+        It then adjusts what videos to show you according to your preferences, 
+        while still keeping the content diverse and not repetitive.</p></div>""",
+                unsafe_allow_html=True)
 
+section("The demo", "Press start, then watch, react or skip and see the feed adapt.")
 
-st.subheader("How does social media work?")
-st.markdown("Have you ever felt that Instagram, TikTok and YouTube can accurately guess what you wish to watch? " \
-        "Social media sites utilise algorithms to analyse your activity and infer which type of content they think you would enjoy.", width = 900)
-
-st.markdown("Simply by watching, liking, commenting upon, following and even skipping videos, data about your interests is collected. This is then applied so that your social media feed can be tailored to you, " \
-            "both in terms of content, its sequence and how often certain subject matter is shown to you." , width = 900)
-
-st.write(" ")
-
-left, right = st.columns([1, 2])
+left, right = st.columns([2, 3], gap="large")
 
 with left:
     card_col, btn_col = st.columns([5, 1])
     with card_col:
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.button("Reset", key="reset", on_click=reset, use_container_width=True)
-        with col2:
-            st.button("▶ Start" if ss.paused else "⏸ Pause", key="playpause",
-                       on_click=toggle_play, use_container_width=True)
-        
+        with st.container(key="controls"):
+            ra, rb = st.columns(2)
+            with ra:
+                st.button("↺ Reset", key="reset", on_click=reset, use_container_width=True)
+            with rb:
+                st.button("▶ Start" if ss.paused else "⏸ Pause", key="playpause", type="primary",
+                          on_click=toggle_play, use_container_width=True)
         st.markdown(card, unsafe_allow_html=True)
         progress_bar()
-
         st.caption(f"Videos watched this session: {len(ss.history)}")
-
-        st.subheader(" ")
-
-        st.subheader("Algorithm Overview")
-        st.markdown("A recommendation algorithm operates through a continuous cycle: \n"\
-                    "1. The platform recommends content based on previous activity. \n"\
-                    "2. The user then interacts with the new content. \n"\
-                    "3. The platform collects new behavioural signals. \n"\
-                    "4. The system updates its predictions. \n"\
-                    "5. New recommendations are generated using the updated information.")
     with btn_col:
-        st.subheader("")
-        st.button("❤️" if i in ss.liked else "🤍", key="like", on_click=toggle,
-                  args=("liked",), help="Like", use_container_width=True)
-        st.button("💭" if i in ss.commented else "💬", key="comment", on_click=toggle,
-                  args=("commented",), help="Comment", use_container_width=True)
-        st.button("✔️" if i in ss.followed else "➕", key="follow", on_click=toggle,
-                  args=("followed",), help="Follow", use_container_width=True)
-
-        st.header(" ")
-
-        st.button("⬆", key="prev", on_click=change_video, args=(-1,), help="Previous video", use_container_width=True)
-        st.button("⬇", key="next", on_click=change_video, args=(1,), help="Next video", use_container_width=True)
+        st.markdown('<div style="height:3.6rem"></div>', unsafe_allow_html=True)   # lines buttons up with the card
+        with st.container(key="actions"):
+            st.button("❤️" if i in ss.liked else "🤍", key="like", on_click=toggle,
+                      args=("liked",), help="Like", use_container_width=True)
+            st.button("💭" if i in ss.commented else "💬", key="comment", on_click=toggle,
+                      args=("commented",), help="Comment", use_container_width=True)
+            st.button("✔️" if i in ss.followed else "➕", key="follow", on_click=toggle,
+                      args=("followed",), help="Follow", use_container_width=True)
+            st.markdown('<div style="height:1.6rem"></div>', unsafe_allow_html=True)
+            st.button("⬆", key="prev", on_click=change_video, args=(-1,), help="Previous video", use_container_width=True)
+            st.button("⬇", key="next", on_click=change_video, args=(1,), help="Next video", use_container_width=True)
 
 with right:
-    blank, col1, col2 = st.columns([1, 3, 4])
-    with col1: 
-        st.subheader("  Your topic points")
+    points_chart()
+    with st.container(border=True, key="panel_mix"):
+        panel_head("Your interest mix", "Share of your points by topic. Refreshes when you press a button.")
+        mix_chart()
 
-        st.header("")
-        st.header("")
+section("The algorithm loop", "A recommendation algorithm operates through a continuous cycle.")
+st.markdown("""
+<div class="steps">
+  <div class="step"><i>1</i><p>The platform recommends content based on previous activity.</p></div>
+  <div class="step"><i>2</i><p>The user then interacts with the new content.</p></div>
+  <div class="step"><i>3</i><p>The platform collects new behavioural signals.</p></div>
+  <div class="step"><i>4</i><p>The system updates its predictions.</p></div>
+  <div class="step"><i>5</i><p>New recommendations are generated using the updated information.</p></div>
+</div>
+""", unsafe_allow_html=True)
 
-        st.subheader("Chance of each topic in the next video (%)")
-
-    with col2:
-        points_chart()
-
-    st.header(" ")
-    st.header(" ")
-    st.plotly_chart(algo_chart)
-
-
-st.subheader("Filter bubble")
-st.markdown("These are situations in which personalized content recommendations may repeatedly expose users to similar information, topics or viewpoints while reducing their exposure to other content. \n"
-            "Personalization can make content discovery more convenient, but excessive reliance on past preferences may limit information diversity and reduce exposure to alternative perspectives. \n"
-            " \n"
-            "The challenge is to find a balance between relevant recommendations and diverse content discovery.", width = 900)
+section("Filter bubble")
+st.markdown("""
+<div class="bubble">
+  <p>These are situations in which personalized content recommendations may repeatedly expose users to similar information,
+  topics or viewpoints while reducing their exposure to other content.</p>
+  <p>Personalization can make content discovery more convenient, but excessive reliance on past preferences may limit
+  information diversity and reduce exposure to alternative perspectives.</p>
+  <p>The challenge is to find a balance between relevant recommendations and diverse content discovery.</p>
+</div>
+""", unsafe_allow_html=True)

@@ -10,5 +10,5 @@
 2. ###### Interests tracking ✅
 3. ###### Final algorithm ✅, dictates content shown ✅
 4. ###### Reducing repetitive content ✅
-5. ###### Adding more videos topics ✅ and other qol
+5. ###### Adding more videos topics ✅ and other qol ✅
 6. ###### Pause and reset button!! ✅
