@@ -15,7 +15,6 @@ ss = st.session_state
 
 
 st.title("Social media algorithms")
-st.subheader("A simple demo")
 
 COLORS = {
     "Cooking": ("#ff662e", "#822b05"),
@@ -170,7 +169,7 @@ VIDEOS = [
 ]
 
 
-
+START_PAUSED = True  # start paused so the user can read the title and description before the clock starts
 POINTS = {"watch": 1, "liked": 4, "commented": 5, "followed": 8}
 SKIP_LIMIT = 1      # leaving after this many seconds or fewer counts as a skip
 SKIP_PENALTY = 2
@@ -191,7 +190,8 @@ ss.setdefault("awarded", 0)             # seconds already paid out for this vide
 ss.setdefault("last_tick", time.time()) # last time any timer code ran
 for key in ("liked", "commented", "followed"):
     ss.setdefault(key, set())
-
+ss.setdefault("paused", START_PAUSED)
+ss.setdefault("paused_at", ss.started) 
 
 def add_points(n):
     for topic in VIDEOS[st.session_state.index]["topics"]:
@@ -202,6 +202,9 @@ def add_points(n):
 def sync_clock():
     """If the browser tab was hidden/frozen, don't count that time as watching."""
     now = time.time()
+    if ss.paused:                       # nothing is playing, so there is nothing to correct
+        ss.last_tick = now
+        return
     gap = now - ss.last_tick
     if gap > AWAY_LIMIT:
         ss.started += gap
@@ -209,7 +212,7 @@ def sync_clock():
 
 
 def watched_seconds():
-    return min(int(time.time() - ss.started), VIDEOS[ss.index]["seconds"])
+    return min(int(elapsed()), VIDEOS[ss.index]["seconds"])
 
 
 def pay_watchtime():
@@ -221,7 +224,8 @@ def pay_watchtime():
 
 
 def elapsed():
-    return time.time() - ss.started
+    """Seconds watched. Frozen while paused."""
+    return (ss.paused_at if ss.paused else time.time()) - ss.started
 
 
 # ---------- the recommendation algorithm ----------
@@ -280,12 +284,25 @@ def change_video(step):
         ss.history.pop()                        # go back to the previous video
         ss.index = ss.history[-1]
     ss.started, ss.awarded, ss.last_tick = time.time(), 0, time.time()
+    ss.paused = False
 
 
 def toggle(name):
     ss[name] ^= {ss.index}
     sign = 1 if ss.index in ss[name] else -1
     add_points(sign * POINTS[name])
+
+
+def toggle_play():
+    now = time.time()
+    if ss.paused:                       # resume: push the start time forward by the paused stretch
+        ss.started += now - ss.paused_at
+        ss.last_tick = now
+        ss.paused = False
+    else:                               # pause: pay what was watched so far, then freeze
+        pay_watchtime()
+        ss.paused_at = time.time()
+        ss.paused = True
 
 
 def progress_bar():
@@ -298,25 +315,28 @@ def progress_bar():
     </div>
     <script>
       const total = {total};
-      const base = {elapsed():.2f};        // seconds already watched when this was drawn
+      const base = {elapsed():.2f};          // seconds already watched when this was drawn
+      const paused = {str(ss.paused).lower()};
       let t0 = performance.now(), hiddenAt = null;
 
-      // pause while the tab is hidden, like sync_clock() does on the server
       document.addEventListener("visibilitychange", () => {{
         if (document.hidden) hiddenAt = performance.now();
         else if (hiddenAt !== null) {{ t0 += performance.now() - hiddenAt; hiddenAt = null; }}
       }});
 
-      function tick() {{
-        const e = base + (performance.now() - t0) / 1000;
-        const pos = e % total;                         // wraps to 0 = loop
+      function draw(e) {{
+        const pos = e % total;                          // wraps to 0 = loop
         document.getElementById("b").style.width = (pos / total * 100) + "%";
         document.getElementById("t").textContent =
           Math.floor(pos) + "s / " + total + "s" +
-          (e >= total ? "  ·  loop " + (Math.floor(e / total) + 1) : "");
+          (e >= total ? "  ·  loop " + (Math.floor(e / total) + 1) : "") +
+          (paused ? "  ·  paused" : "");
+      }}
+      function tick() {{
+        draw(base + (performance.now() - t0) / 1000);
         requestAnimationFrame(tick);
       }}
-      tick();
+      if (paused) draw(base); else tick();
     </script>
     """, height=48)
 
@@ -336,14 +356,15 @@ def topic_chart(data, fmt="d", max_value=None):
     labels = base.mark_text(align="left", dx=6, fontSize=13, color="white").encode(text=alt.Text("Value:Q", format=fmt))
     return (bars + labels).properties(height=len(df) * 38).configure_view(strokeWidth=0)
 
+def reset():
+    ss.clear()
+
 
 @st.fragment(run_every=1)
 def points_chart():
     pay_watchtime()
-    st.subheader("Your topic points")
-    st.altair_chart(topic_chart(ss.points), use_container_width=True)
-    st.subheader("Chance of each topic in the next video (%)")
-    st.altair_chart(topic_chart(topic_odds(), fmt=".0f", max_value=100), use_container_width=True)
+    st.altair_chart(topic_chart(ss.points), height=200)
+    st.altair_chart(topic_chart(topic_odds(), fmt=".0f", max_value=100), height=200)
 
 
 v, i = VIDEOS[ss.index], ss.index
@@ -356,7 +377,7 @@ mins, secs = divmod(v["seconds"], 60)
 
 
 card = f"""
-<div style="width:320px;max-width:100%;aspect-ratio:9/16;margin:0;border-radius:20px;
+<div style="width:320px;max-width:100%;aspect-ratio:9/12;margin:0;border-radius:20px;
             padding:20px;box-sizing:border-box;color:white;display:flex;flex-direction:column;
             justify-content:space-between;background:linear-gradient(160deg,{c1},{c2});">
   <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600">
@@ -370,36 +391,6 @@ card = f"""
   </div>
 </div>
 """
-
-
-left, right = st.columns([1, 2])
-
-with left:
-    card_col, btn_col = st.columns([5, 1])
-    with card_col:
-        st.markdown(card, unsafe_allow_html=True)
-        progress_bar()
-        st.caption(f"Videos watched this session: {len(ss.history)}")
-    with btn_col:
-        st.button("❤️" if i in ss.liked else "🤍", key="like", on_click=toggle,
-                  args=("liked",), help="Like", use_container_width=True)
-        st.button("💭" if i in ss.commented else "💬", key="comment", on_click=toggle,
-                  args=("commented",), help="Comment", use_container_width=True)
-        st.button("✔️" if i in ss.followed else "➕", key="follow", on_click=toggle,
-                  args=("followed",), help="Follow", use_container_width=True)
-
-        st.header(" ")
-        st.header(" ")
-        st.header(" ")
-
-        st.button("⬆", key="prev", on_click=change_video, args=(-1,), help="Previous video", use_container_width=True)
-        st.button("⬇", key="next", on_click=change_video, args=(1,), help="Next video", use_container_width=True)
-
-with right:
-    col1, col2 = st.columns([1, 2])
-    with col2:
-        points_chart()
-
 
 df = pd.DataFrame({
     "Topic": ["Cooking", "Travel", "Fitness", "Gaming", "Tech", "Music", "Comedy", "Science"],
@@ -422,8 +413,75 @@ color_map ={
 
 algo_chart = px.pie(df, names="Topic", 
                     values="Amount", 
-                    title="Algorithm Summary", 
                     color="Topic", 
                     color_discrete_map=color_map)
 
-st.plotly_chart(algo_chart)
+
+st.subheader("How does social media work?")
+st.markdown("Have you ever felt that Instagram, TikTok and YouTube can accurately guess what you wish to watch? " \
+        "Social media sites utilise algorithms to analyse your activity and infer which type of content they think you would enjoy.", width = 900)
+
+st.markdown("Simply by watching, liking, commenting upon, following and even skipping videos, data about your interests is collected. This is then applied so that your social media feed can be tailored to you, " \
+            "both in terms of content, its sequence and how often certain subject matter is shown to you." , width = 900)
+
+st.subheader("")
+
+left, right = st.columns([1, 2])
+
+with left:
+    card_col, btn_col = st.columns([5, 1])
+    with card_col:
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            st.button("Reset", key="reset", on_click=reset, use_container_width=True)
+        with col2:
+            st.button("▶ Start" if ss.paused else "⏸ Pause", key="playpause",
+                       on_click=toggle_play, use_container_width=True)
+        
+        st.markdown(card, unsafe_allow_html=True)
+        progress_bar()
+
+        st.caption(f"Videos watched this session: {len(ss.history)}")
+
+        st.header(" ")
+        st.header(" ")
+
+        st.subheader("Algorithm Overview")
+        st.markdown("A recommendation algorithm operates through a continuous cycle: \n"\
+                    "1. The platform recommends content based on previous activity. \n"\
+                    "2. The user then interacts with the new content. \n"\
+                    "3. The platform collects new behavioural signals. \n"\
+                    "4. The system updates its predictions. \n"\
+                    "5. New recommendations are generated using the updated information.")
+    with btn_col:
+        st.subheader("")
+        st.button("❤️" if i in ss.liked else "🤍", key="like", on_click=toggle,
+                  args=("liked",), help="Like", use_container_width=True)
+        st.button("💭" if i in ss.commented else "💬", key="comment", on_click=toggle,
+                  args=("commented",), help="Comment", use_container_width=True)
+        st.button("✔️" if i in ss.followed else "➕", key="follow", on_click=toggle,
+                  args=("followed",), help="Follow", use_container_width=True)
+
+        st.header(" ")
+
+        st.button("⬆", key="prev", on_click=change_video, args=(-1,), help="Previous video", use_container_width=True)
+        st.button("⬇", key="next", on_click=change_video, args=(1,), help="Next video", use_container_width=True)
+
+with right:
+    blank, col1, col2 = st.columns([1, 3, 4])
+    with col1: 
+        st.subheader("  Your topic points")
+
+        st.header("")
+        st.header("")
+
+        st.subheader("Chance of each topic in the next video (%)")
+
+    with col2:
+        points_chart()
+
+    st.subheader("")
+    st.plotly_chart(algo_chart)
+
+
+
