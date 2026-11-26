@@ -424,7 +424,7 @@ st.markdown("Have you ever felt that Instagram, TikTok and YouTube can accuratel
 st.markdown("Simply by watching, liking, commenting upon, following and even skipping videos, data about your interests is collected. This is then applied so that your social media feed can be tailored to you, " \
             "both in terms of content, its sequence and how often certain subject matter is shown to you." , width = 900)
 
-st.subheader("")
+st.write(" ")
 
 left, right = st.columns([1, 2])
 
@@ -443,8 +443,7 @@ with left:
 
         st.caption(f"Videos watched this session: {len(ss.history)}")
 
-        st.header(" ")
-        st.header(" ")
+        st.subheader(" ")
 
         st.subheader("Algorithm Overview")
         st.markdown("A recommendation algorithm operates through a continuous cycle: \n"\
@@ -480,8 +479,13 @@ with right:
     with col2:
         points_chart()
 
-    st.subheader("")
+    st.header(" ")
+    st.header(" ")
     st.plotly_chart(algo_chart)
 
 
-
+st.subheader("Filter bubble")
+st.markdown("These are situations in which personalized content recommendations may repeatedly expose users to similar information, topics or viewpoints while reducing their exposure to other content. \n"
+            "Personalization can make content discovery more convenient, but excessive reliance on past preferences may limit information diversity and reduce exposure to alternative perspectives. \n"
+            " \n"
+            "The challenge is to find a balance between relevant recommendations and diverse content discovery.", width = 900)
